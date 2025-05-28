@@ -1,5 +1,5 @@
 # Amazon Prime Clone Deployment Project
-(![Pipeline Overview](https://github.com/user-attachments/assets/23463138-c112-4997-8631-63218dbf6e53)
+![Pipeline Overview](https://github.com/user-attachments/assets/23463138-c112-4997-8631-63218dbf6e53)
 
 
 ## Project Overview
