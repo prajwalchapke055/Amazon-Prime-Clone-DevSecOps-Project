@@ -1,7 +1,6 @@
 # Amazon Prime Clone Deployment Project
 ![Pipeline Overview](https://github.com/user-attachments/assets/23463138-c112-4997-8631-63218dbf6e53)
 
-
 ## Project Overview
 This project demonstrates deploying an Amazon Prime clone using a set of DevOps tools and practices. The primary tools include:
 
@@ -22,6 +21,27 @@ This project demonstrates deploying an Amazon Prime clone using a set of DevOps 
 2. **AWS CLI**: Install AWS CLI on your local machine. [AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 3. **VS Code (Optional)**: Download and install VS Code as a code editor. [VS Code Download](https://code.visualstudio.com/download)
 4. **Install Terraform in Windows**: Download and install Terraform in Windows [Terraform in Windows](https://learn.microsoft.com/en-us/azure/developer/terraform/get-started-windows-bash)
+
+---
+
+## Note For Developers
+
+- This project is a Amazon Prime Clone. You can run the below commands to see the project on your local system.
+- Hosted on Firebase at - https://prime-clone-2fcfe.web.app/ (Desktop View Only). For getting Data I have used TMDB API.
+
+- For running the App locally you will have to generate your own API_Key and substitute in all requests files and App.js files.
+- You can check out other ReactJs projects as well in other repositories deployed on firebase.
+
+- Icons from Material UI library have been used. Link is - https://material-ui.com/components/material-icons/
+
+### Technologies Used:
+- ReactJS
+- NodeJS
+- MaterialUI for icons
+
+### Note: Don't use it for any commercial purposes.
+
+---
 
 ## Configuration
 ### AWS Setup
@@ -105,7 +125,7 @@ pipeline {
     stages {
         stage('1. Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/pandacloud1/DevopsProject2.git'
+                git branch: 'main', url: 'https://github.com/prajwalchapke055/Amazon-Prime-Clone-DevSecOps-Project.git'
             }
         }
         
