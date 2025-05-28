@@ -366,7 +366,32 @@ pipeline {
 }
 ```
 
+---
+
 ## Additional Information
 For further details, refer to the word document containing a complete write-up of the project.
+
+- Contact Details: Email id => prajwalchapke055@gmail.com
+- Hosted on Firebase at => https://prime-clone-2fcfe.web.app/
+
+### Available Scripts
+In this project directory, you can run:
+
+```bash
+npm install
+```
+This command installs all the required dependencies for running the App.
+
+```bash
+npm start
+```
+Runs the app in the development mode.
+
+```bash 
+Open http://localhost:3000 to view it in the browser. 
+```
+
+The page will reload if you make edits.
+You will also see any lint errors in the console.
 
 ---
