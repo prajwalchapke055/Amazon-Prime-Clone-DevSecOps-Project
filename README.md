@@ -1,6 +1,8 @@
 # Amazon Prime Clone Deployment Project
 ![Pipeline Overview](https://github.com/user-attachments/assets/23463138-c112-4997-8631-63218dbf6e53)
 
+---
+
 ## Project Overview
 This project demonstrates deploying an Amazon Prime clone using a set of DevOps tools and practices. The primary tools include:
 
@@ -15,6 +17,8 @@ This project demonstrates deploying an Amazon Prime clone using a set of DevOps 
 - **AWS EKS**: Container management platform.
 - **ArgoCD**: Continuous deployment tool.
 - **Prometheus & Grafana**: Monitoring and alerting tools.
+
+---
 
 ## Pre-requisites
 1. **AWS Account**: Ensure you have an AWS account. [Create an AWS Account](https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-creating.html)
@@ -48,6 +52,8 @@ This project demonstrates deploying an Amazon Prime clone using a set of DevOps 
 1. **IAM User**: Create an IAM user and generate the access and secret keys to configure your machine with AWS.
 2. **Key Pair**: Create a key pair named `key` for accessing your EC2 instances.
 
+---
+
 ## Infrastructure Setup Using Terraform
 1. **Clone the Repository** (Open Command Prompt & run below):
    ```bash
@@ -72,11 +78,15 @@ This project demonstrates deploying an Amazon Prime clone using a set of DevOps 
 
 This will create the EC2 instance, security groups, and install necessary tools like Jenkins, Docker, SonarQube, etc.
 
+---
+
 ## SonarQube Configuration
 1. **Login Credentials**: Use `admin` for both username and password.
 2. **Generate SonarQube Token**:
    - Create a token under `Administration → Security → Users → Tokens`.
    - Save the token for integration with Jenkins.
+
+---
 
 ## Jenkins Configuration
 1. **Add Jenkins Credentials**:
@@ -86,6 +96,8 @@ This will create the EC2 instance, security groups, and install necessary tools 
 
 3. **Global Tool Configuration**:
    - Set up tools like JDK 17, SonarQube Scanner, NodeJS, and Docker under `Manage Jenkins → Global Tool Configuration`.
+
+---
 
 ## Pipeline Overview
 ### Pipeline Stages
@@ -98,9 +110,13 @@ This will create the EC2 instance, security groups, and install necessary tools 
 7. **Push to AWS ECR**: Tags and pushes the Docker image to ECR.
 8. **Image Cleanup**: Deletes images from the Jenkins server to save space.
 
+---
+
 ### Running Jenkins Pipeline
 Create and run the build pipeline in Jenkins. The pipeline will build, analyze, and push the project Docker image to ECR.
 Create a Jenkins pipeline by adding the following script:
+
+---
 
 ### Build Pipeline
 
@@ -217,6 +233,7 @@ pipeline {
     }
 }
 ```
+---
 
 ## Continuous Deployment with ArgoCD
 1. **Create EKS Cluster**: Use Terraform to create an EKS cluster and related resources.
@@ -286,6 +303,15 @@ pipeline {
     }
 }
 ```
+---
+
+## Screenshots of Website
+
+![Screenshot (288)](https://github.com/user-attachments/assets/934be741-4a8a-4ddd-936e-d7899fd33496)
+
+![Screenshot (289)](https://github.com/user-attachments/assets/f9da10e6-04ad-45d8-81d2-d85df3141c1f)
+
+---
 
 ## Cleanup
 - Run cleanup pipelines to delete the resources such as load balancers, services, and deployment files.
