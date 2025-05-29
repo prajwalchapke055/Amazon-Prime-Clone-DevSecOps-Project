@@ -7,8 +7,11 @@ WORKDIR /app
 # Copy package.json and package-lock.json to the working directory
 COPY package.json package-lock.json /app/
 
+# Optional: clean cache (good for CI)
+RUN npm cache clean --force
+
 # Install dependencies
-RUN npm install
+RUN npm install --legacy-peer-deps --loglevel=error
 
 # Copy the entire codebase to the working directory
 COPY . /app/
