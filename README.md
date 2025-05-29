@@ -130,7 +130,7 @@ pipeline {
     }
     
     tools {
-        jdk 'JDK'
+        jdk 'JDK17'
         nodejs 'NodeJS'
     }
     
