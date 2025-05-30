@@ -163,10 +163,13 @@ pipeline {
                 credentialsId: 'sonar-token'
             }
         }
-        
-        stage('4. Install npm') {
+
+	stage('4. Install npm') {
             steps {
-                sh "npm install"
+                 sh """
+                 rm -rf node_modules package-lock.json
+                 npm install
+                 """
             }
         }
         
