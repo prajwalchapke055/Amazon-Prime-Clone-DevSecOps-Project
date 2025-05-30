@@ -1,23 +1,26 @@
-# Use Node.js Alpine base image
-FROM node:alpine
+# Use Alpine-based Node.js image
+FROM node:18-alpine
 
-# Create and set the working directory inside the container
+# Set working directory inside the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json to the working directory
-COPY package.json package-lock.json /app/
+# Copy only dependency files first (for caching)
+COPY package*.json ./
 
-# Optional: clean cache (good for CI)
-RUN npm cache clean --force
+# Install build dependencies required for native modules
+RUN apk add --no-cache \
+      python3 \
+      make \
+      g++ \
+  && npm cache clean --force \
+  && npm install --legacy-peer-deps --loglevel=error \
+  && apk del python3 make g++
 
-# Install dependencies
-RUN npm install --legacy-peer-deps --loglevel=error
+# Copy the rest of the application code
+COPY . .
 
-# Copy the entire codebase to the working directory
-COPY . /app/
+# Expose the port (adjust if different)
+EXPOSE 3000
 
-# Expose the port your container app
-EXPOSE 3000    
-
-# Define the command to start your application (replace "start" with the actual command to start your app)
+# Start the application
 CMD ["npm", "start"]
