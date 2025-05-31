@@ -7,7 +7,7 @@ pipeline {
     }
     
     tools {
-        jdk 'JDK'
+        jdk 'JDK17'
         nodejs 'NodeJS'
     }
     
@@ -18,7 +18,7 @@ pipeline {
     stages {
         stage('1. Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/pandacloud1/DevopsProject2.git'
+                git branch: 'main', url: 'https://github.com/prajwalchapke055/Amazon-Prime-Clone-DevSecOps-Project.git'
             }
         }
         
@@ -40,10 +40,13 @@ pipeline {
                 credentialsId: 'sonar-token'
             }
         }
-        
-        stage('4. Install npm') {
+
+	stage('4. Install npm') {
             steps {
-                sh "npm install"
+                 sh """
+                 rm -rf node_modules package-lock.json
+                 npm install --legacy-peer-deps
+                 """
             }
         }
         
