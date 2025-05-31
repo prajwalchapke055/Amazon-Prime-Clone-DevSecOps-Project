@@ -52,7 +52,7 @@ resource "aws_security_group" "my-sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }  
 
-  # Port 3000 is required for Grafana
+  # Port 3000 is required for NPM Port - Grafana
   ingress {
     description     = "NPM Port"
     from_port       = 3000
@@ -78,6 +78,15 @@ resource "aws_security_group" "my-sg" {
     protocol        = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }  
+
+  # Port 5000 is used for Grafana (custom port)
+  ingress {
+    description     = "Grafana Port"
+    from_port       = 5000
+    to_port         = 5000
+    protocol        = "tcp"
+    cidr_blocks     = ["0.0.0.0/0"]
+  }
 
   # Port 9000 is required for SonarQube
   ingress {
