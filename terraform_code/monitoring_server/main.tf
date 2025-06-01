@@ -29,6 +29,7 @@ resource "aws_security_group" "monitoring_sg" {
       { desc = "HTTP", from = 80, to = 80 },
       { desc = "HTTPS", from = 443, to = 443 },
       { desc = "Etcd", from = 2379, to = 2380 },
+      { desc = "NPM", from = 3000, to = 3000 },
       { desc = "Grafana", from = 5000, to = 5000 },
       { desc = "Jenkins", from = 8080, to = 8080 },
       { desc = "SonarQube", from = 9000, to = 9000 },
@@ -36,7 +37,8 @@ resource "aws_security_group" "monitoring_sg" {
       { desc = "Prometheus Metrics", from = 9100, to = 9100 },
       { desc = "K8s API", from = 6443, to = 6443 },
       { desc = "K8s Internal", from = 10250, to = 10260 },
-      { desc = "NodePort", from = 30000, to = 32767 }
+      { desc = "NodePort", from = 30000, to = 32767 },
+      { desc = "BlackboxExporter", from = 9115, to = 9115 }
     ]
     content {
       description = ingress.value.desc
@@ -81,7 +83,7 @@ provisioner "remote-exec" {
   inline = [
     # Update and install essentials
     "sudo apt-get update -y",
-    "sudo apt-get install -y unzip curl wget gnupg",
+    "sudo apt-get install -y unzip curl wget gnupg net-tools",
 
     # Install AWS CLI
     "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'",
