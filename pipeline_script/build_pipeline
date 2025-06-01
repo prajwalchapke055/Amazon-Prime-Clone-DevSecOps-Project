@@ -51,78 +51,39 @@ pipeline {
 
 
         stage ('5. OWASP Dependency-Check') {
-    steps {
-        dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dependencyCheckInstallation'
-        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-    }
+            steps {
+                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+                dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dc'
+            }
+            dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
         }
+    }
 
 
-
-//         stage ('5. OWASP Dependency-Check') {
-//     steps {
-//         withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
-//             dependencyCheck additionalArguments: """ 
-//                 -o "./" 
-//                 -s "./" 
-//                 -f "XML" 
-//                 --prettyPrint
-//                 --nvdApiKey ${NVD_API_KEY}
-//             """, odcInstallation: 'dependencyCheckInstallation'
-            
-//             dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-//         }
-//     }
-// }
-
-
-            stage('6. Trivy Scan & Report') {
-                steps {
-                    script {
+        stage('6. Trivy Scan & Report') {
+            steps {
+                script {
                     sh "trivy fs --format table -o trivy-fs-report.html . "
-                    }
                 }
             }
-        
-// stage('6. Trivy Scan & Report') {
-//     steps {
-//         script {
-//             sh '''
-//             echo "Downloading Trivy HTML report template..."
-//             curl -sSL -o html.tpl https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl
-
-//             echo "Running Trivy file system scan..."
-//             trivy fs --format template --template "@html.tpl" -o trivy-fs-report.html .
-//             '''
-//         }
-//         publishHTML(target: [
-//             allowMissing: false,
-//             alwaysLinkToLastBuild: true,
-//             keepAll: true,
-//             reportDir: '.',
-//             reportFiles: 'trivy-fs-report.html',
-//             reportName: 'Trivy FS Vulnerability Report'
-//         ])
-//     }
-// }
-
-
-
-stage('7. Build, Push & Deploy Docker Container') {
-    steps {
-        withDockerRegistry(credentialsId: 'docker', url: 'https://index.docker.io/v1/') {
-            script {
-                def imageName = "prajwal055/${params.ECR_REPO_NAME}"
-                def fullImage = "${imageName}:latest"
-
-                sh "docker build -t ${fullImage} ."
-                sh "docker push ${fullImage}"
-                sh "docker rm -f amazon-prime || true"
-                sh "docker run -d --rm --name amazon-prime -p 3000:3000 ${fullImage}"
-            }
         }
-    }
-}
+
+
+        stage('7. Build, Push & Deploy Docker Container') {
+            steps {
+                withDockerRegistry(credentialsId: 'docker', url: 'https://index.docker.io/v1/') {
+                    script {
+                        def imageName = "prajwal055/${params.ECR_REPO_NAME}"
+                        def fullImage = "${imageName}:latest"
+
+                        sh "docker build -t ${params.ECR_REPO_NAME} ."
+                        sh "docker push ${fullImage}"
+                        // sh "docker rm -f amazon-prime || true"
+                        // sh "docker run -d --rm --name amazon-prime -p 3000:3000 ${fullImage}"
+                        }
+                    }
+                }
+        }
 
         stage('8. Create ECR Repo') {
             steps {
