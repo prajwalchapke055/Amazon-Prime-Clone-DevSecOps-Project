@@ -123,6 +123,7 @@ provisioner "remote-exec" {
     "sudo systemctl enable --now grafana-server"
   ]
 }
+}
 
 # STEP 3: OUTPUTS
 output "SERVER-SSH-ACCESS" {
