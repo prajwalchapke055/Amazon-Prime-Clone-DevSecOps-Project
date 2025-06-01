@@ -123,115 +123,178 @@ Create a Jenkins pipeline by adding the following script:
 ```groovy
 pipeline {
     agent any
-    
+
     parameters {
         string(name: 'ECR_REPO_NAME', defaultValue: 'amazon-prime', description: 'Enter repository name')
-        string(name: 'AWS_ACCOUNT_ID', defaultValue: '123456789012', description: 'Enter AWS Account ID') // Added missing quote
+        string(name: 'AWS_ACCOUNT_ID', defaultValue: '123456789012', description: 'Enter AWS Account ID')
     }
-    
+
     tools {
         jdk 'JDK17'
         nodejs 'NodeJS'
     }
-    
+
     environment {
         SCANNER_HOME = tool 'SonarQube Scanner'
     }
-    
+
     stages {
         stage('1. Git Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/prajwalchapke055/Amazon-Prime-Clone-DevSecOps-Project.git'
             }
         }
-        
+
         stage('2. SonarQube Analysis') {
             steps {
-                withSonarQubeEnv ('sonar-server') {
+                withSonarQubeEnv('sonar-server') {
                     sh """
-                    $SCANNER_HOME/bin/sonar-scanner \
+                    ${SCANNER_HOME}/bin/sonar-scanner \
                     -Dsonar.projectName=amazon-prime \
                     -Dsonar.projectKey=amazon-prime
                     """
                 }
             }
         }
-        
+
         stage('3. Quality Gate') {
             steps {
-                waitForQualityGate abortPipeline: false, 
-                credentialsId: 'sonar-token'
+                waitForQualityGate abortPipeline: true
             }
         }
 
-	stage('4. Install npm') {
+        stage('4. Install npm') {
             steps {
-                 sh """
-                 rm -rf node_modules package-lock.json
-                 npm install --legacy-peer-deps
-                 """
+                sh '''
+                rm -rf node_modules package-lock.json
+                npm install --legacy-peer-deps
+                '''
             }
         }
-        
-        stage('5. Trivy Scan') {
+
+
+        stage ('5. OWASP Dependency-Check') {
             steps {
-                sh "trivy fs . > trivy.txt"
+                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+                dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dc'
+            }
+            dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+        }
+    }
+
+
+        stage('6. Trivy Scan & Report') {
+            steps {
+                script {
+                    sh "trivy fs --format table -o trivy-fs-report.html . "
+                }
             }
         }
-        
-        stage('6. Build Docker Image') {
+
+
+        stage('7. Build, Push & Deploy Docker Container') {
             steps {
-                sh "docker build -t ${params.ECR_REPO_NAME} ."
-            }
+                withDockerRegistry(credentialsId: 'docker', url: 'https://index.docker.io/v1/') {
+                    script {
+                        def imageName = "prajwal055/${params.ECR_REPO_NAME}"
+                        def fullImage = "${imageName}:latest"
+
+                        sh "docker build -t ${params.ECR_REPO_NAME} ."
+                        sh "docker push ${fullImage}"
+                        // sh "docker rm -f amazon-prime || true"
+                        // sh "docker run -d --rm --name amazon-prime -p 3000:3000 ${fullImage}"
+                        }
+                    }
+                }
         }
-        
-        stage('7. Create ECR repo') {
+
+        stage('8. Create ECR Repo') {
             steps {
-                withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'), 
-                                 string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')]) {
-                    sh """
+                withCredentials([
+                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+                ]) {
+                    sh '''
                     aws configure set aws_access_key_id $AWS_ACCESS_KEY
                     aws configure set aws_secret_access_key $AWS_SECRET_KEY
-                    aws ecr describe-repositories --repository-names ${params.ECR_REPO_NAME} --region us-east-1 || \
-                    aws ecr create-repository --repository-name ${params.ECR_REPO_NAME} --region us-east-1
-                    """
+                    aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region us-east-1 || \
+                    aws ecr create-repository --repository-name ${ECR_REPO_NAME} --region us-east-1
+                    '''
                 }
             }
         }
-        
-        stage('8. Login to ECR & tag image') {
+
+        stage('9. Login to ECR & Tag Image') {
             steps {
-                withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'), 
-                                 string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')]) {
-                    sh """
-                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-                    docker tag ${params.ECR_REPO_NAME} ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:${BUILD_NUMBER}
-                    docker tag ${params.ECR_REPO_NAME} ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:latest
-                    """
+                withCredentials([
+                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+                ]) {
+                    sh '''
+                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+                    docker tag ${ECR_REPO_NAME}:latest ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:${BUILD_NUMBER}
+                    docker tag ${ECR_REPO_NAME}:latest ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:latest
+                    '''
                 }
             }
         }
-        
-        stage('9. Push image to ECR') {
+
+        stage('10. Push Image to ECR') {
             steps {
-                withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'), 
-                                 string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')]) {
-                    sh """
-                    docker push ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:${BUILD_NUMBER}
-                    docker push ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:latest
-                    """
+                withCredentials([
+                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+                ]) {
+                    sh '''
+                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:${BUILD_NUMBER}
+                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:latest
+                    '''
                 }
             }
         }
-        
-        stage('10. Cleanup Images') {
+
+        stage('11. Cleanup Images') {
             steps {
-                sh """
-                docker rmi ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:${BUILD_NUMBER}
-                docker rmi ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:latest
-		docker images
-                """
+                sh '''
+                docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:${BUILD_NUMBER} || true
+                docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:latest || true
+                docker images
+                '''
             }
+        }
+    }
+
+  post {
+    always {
+        script {
+            def jobName = env.JOB_NAME
+            def buildNumber = env.BUILD_NUMBER
+            def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
+            def buildUser = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')[0]?.userId ?: 'GitHub Triggered'
+            def bannerColor = buildStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
+
+            def body = """<html>
+                            <body>
+                                <div style="border: 4px solid ${bannerColor}; padding: 10px;">
+                                    <h2>${jobName} - Build #${buildNumber}</h2>
+                                    <div style="background-color: ${bannerColor}; padding: 10px;">
+                                        <h3 style="color: white;">Pipeline Status: ${buildStatus.toUpperCase()}</h3>
+                                    </div>
+                                    <p><strong>Started by:</strong> ${buildUser}</p>
+                                    <p>Check the <a href="${env.BUILD_URL}">console output</a>.</p>
+                                </div>
+                            </body>
+                          </html>"""
+
+            emailext(
+                subject: "Pipeline ${buildStatus}: ${jobName} #${buildNumber}",
+                body: body,
+                to: 'prajwalchapke742@gmail.com',
+                from: 'jenkins@example.com',
+                replyTo: 'jenkins@example.com',
+                mimeType: 'text/html',
+                attachmentsPattern: 'trivy-fs-report.html,dependency-check-report.xml,**/*.html,**/*txt,**/*.xml'
+            )
         }
     }
 }
@@ -253,36 +316,53 @@ pipeline {
     }
 
     parameters {
+        string(name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'Enter your AWS region')
+        string(name: 'AWS_ACCOUNT_ID', defaultValue: '123456789000', description: 'Enter your AWS account ID')
+        string(name: 'ECR_REPO_NAME', defaultValue: 'amazon-prime', description: 'Enter ECR repository name')
+        string(name: 'VERSION', defaultValue: 'latest', description: 'Enter image version tag')
         string(name: 'CLUSTER_NAME', defaultValue: 'amazon-prime-cluster', description: 'Enter your EKS cluster name')
     }
 
     stages {
-        stage("Login to EKS") {
+
+        stage("1. Clone GitHub Repository") {
+            steps {
+                git branch: 'main', url: 'https://github.com/pandacloud1/DevopsProject2.git'
+            }
+        }
+
+        stage("2. Login to EKS") {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
-                                     string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')]) {
-                        sh "aws eks --region us-east-1 update-kubeconfig --name ${params.CLUSTER_NAME}"
+                    withCredentials([
+                        string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+                        string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+                    ]) {
+                        sh """
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY
+                        aws configure set aws_secret_access_key $AWS_SECRET_KEY
+                        aws configure set region ${params.AWS_REGION}
+                        aws eks --region ${params.AWS_REGION} update-kubeconfig --name ${params.CLUSTER_NAME}
+                        """
                     }
                 }
             }
         }
 
-        stage("Configure Prometheus & Grafana") {
+        stage("3. Configure Prometheus & Grafana") {
             steps {
                 script {
                     sh """
                     helm repo add stable https://charts.helm.sh/stable || true
                     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
-                    # Check if namespace 'prometheus' exists
+
                     if kubectl get namespace prometheus > /dev/null 2>&1; then
-                        # If namespace exists, upgrade the Helm release
                         helm upgrade stable prometheus-community/kube-prometheus-stack -n prometheus
                     else
-                        # If namespace does not exist, create it and install Helm release
                         kubectl create namespace prometheus
                         helm install stable prometheus-community/kube-prometheus-stack -n prometheus
                     fi
+
                     kubectl patch svc stable-kube-prometheus-sta-prometheus -n prometheus -p '{"spec": {"type": "LoadBalancer"}}'
                     kubectl patch svc stable-grafana -n prometheus -p '{"spec": {"type": "LoadBalancer"}}'
                     """
@@ -290,11 +370,10 @@ pipeline {
             }
         }
 
-        stage("Configure ArgoCD") {
+        stage("4. Configure ArgoCD") {
             steps {
                 script {
                     sh """
-                    # Install ArgoCD
                     kubectl create namespace argocd || true
                     kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
                     kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
@@ -302,10 +381,28 @@ pipeline {
                 }
             }
         }
-		
+
+        stage("5. Update Image in manifest.yml") {
+            steps {
+                script {
+                    def IMAGE = "${params.AWS_ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO_NAME}:${params.VERSION}"
+                    sh "sed -i 's|image: .*|image: ${IMAGE}|' k8s_files/manifest.yml"
+                }
+            }
+        }
+
+        stage("6. Deploy Application to EKS") {
+            steps {
+                script {
+                    // Apply single manifest
+                    sh "kubectl apply -f k8s_files/manifest.yml"
+                }
+            }
+        }
     }
 }
 ```
+
 ---
 
 ## Screenshots of Website
@@ -335,7 +432,7 @@ pipeline {
 
     stages {
 
-        stage("Login to EKS") {
+        stage("1. Login to EKS") {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
@@ -346,7 +443,7 @@ pipeline {
             }
         }
         
-        stage('Cleanup K8s Resources') {
+        stage('2. Cleanup K8s Resources') {
             steps {
                 script {
                     // Step 1: Delete services and deployments
@@ -372,7 +469,7 @@ pipeline {
             }
         }
 		
-        stage('Delete ECR Repository and KMS Keys') {
+        stage('3. Delete ECR Repository and KMS Keys') {
             steps {
                 script {
                     // Step 1: Delete ECR Repository
