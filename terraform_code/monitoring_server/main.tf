@@ -70,47 +70,58 @@ resource "aws_instance" "monitoring_ec2" {
     Name = var.server_name
   }
 
-  provisioner "remote-exec" {
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file("./key.pem") # replace with your key-name
-      host        = self.public_ip
-    }
-
-    inline = [
-      # Update and install essentials
-      "sudo apt-get update -y",
-      "sudo apt-get install -y unzip curl wget gnupg",
-
-      # Install AWS CLI
-      "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'",
-      "unzip awscliv2.zip",
-      "sudo ./aws/install",
-
-      # Install Prometheus
-      "wget https://github.com/prometheus/prometheus/releases/download/v2.51.2/prometheus-2.51.2.linux-amd64.tar.gz",
-      "tar xvf prometheus-2.51.2.linux-amd64.tar.gz",
-      "sudo useradd --no-create-home --shell /bin/false prometheus",
-      "sudo mkdir -p /etc/prometheus /var/lib/prometheus",
-      "sudo cp prometheus-2.51.2.linux-amd64/prometheus prometheus-2.51.2.linux-amd64/promtool /usr/local/bin/",
-      "sudo cp -r prometheus-2.51.2.linux-amd64/consoles prometheus-2.51.2.linux-amd64/console_libraries prometheus-2.51.2.linux-amd64/prometheus.yml /etc/prometheus/",
-      "sudo chown -R prometheus:prometheus /etc/prometheus /var/lib/prometheus",
-      "echo '[Unit]\nDescription=Prometheus\nAfter=network.target\n\n[Service]\nUser=prometheus\nExecStart=/usr/local/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus/\n\n[Install]\nWantedBy=multi-user.target' | sudo tee /etc/systemd/system/prometheus.service",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable --now prometheus",
-
-      # Install Grafana
-      "sudo mkdir -p /etc/apt/keyrings/",
-      "wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null",
-      "echo 'deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main' | sudo tee /etc/apt/sources.list.d/grafana.list",
-      "sudo apt-get update -y",
-      "sudo apt-get install grafana -y",
-      "sudo sed -i 's/^;http_port = 3000/http_port = 5000/' /etc/grafana/grafana.ini",
-      "sudo systemctl daemon-reload",
-      "sudo systemctl enable --now grafana-server"
-    ]
+provisioner "remote-exec" {
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file("./key.pem") # replace with your key-name
+    host        = self.public_ip
   }
+
+  inline = [
+    # Update and install essentials
+    "sudo apt-get update -y",
+    "sudo apt-get install -y unzip curl wget gnupg",
+
+    # Install AWS CLI
+    "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'",
+    "unzip awscliv2.zip",
+    "sudo ./aws/install",
+
+    # Install Prometheus
+    "wget https://github.com/prometheus/prometheus/releases/download/v2.51.2/prometheus-2.51.2.linux-amd64.tar.gz",
+    "tar xvf prometheus-2.51.2.linux-amd64.tar.gz",
+    "sudo useradd --no-create-home --shell /bin/false prometheus",
+    "sudo mkdir -p /etc/prometheus /var/lib/prometheus",
+    "sudo cp prometheus-2.51.2.linux-amd64/prometheus prometheus-2.51.2.linux-amd64/promtool /usr/local/bin/",
+    "sudo cp -r prometheus-2.51.2.linux-amd64/consoles prometheus-2.51.2.linux-amd64/console_libraries prometheus-2.51.2.linux-amd64/prometheus.yml /etc/prometheus/",
+    "sudo chown -R prometheus:prometheus /etc/prometheus /var/lib/prometheus",
+    "echo '[Unit]\nDescription=Prometheus\nAfter=network.target\n\n[Service]\nUser=prometheus\nExecStart=/usr/local/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus/\n\n[Install]\nWantedBy=multi-user.target' | sudo tee /etc/systemd/system/prometheus.service",
+    "sudo systemctl daemon-reload",
+    "sudo systemctl enable --now prometheus",
+
+    # Install Blackbox Exporter
+    "wget https://github.com/prometheus/blackbox_exporter/releases/download/v0.26.0/blackbox_exporter-0.26.0.linux-amd64.tar.gz",
+    "tar xvf blackbox_exporter-0.26.0.linux-amd64.tar.gz",
+    "sudo useradd --no-create-home --shell /bin/false blackbox_exporter",
+    "sudo cp blackbox_exporter-0.26.0.linux-amd64/blackbox_exporter /usr/local/bin/",
+    "sudo mkdir -p /etc/blackbox_exporter",
+    "sudo cp blackbox_exporter-0.26.0.linux-amd64/blackbox.yml /etc/blackbox_exporter/",
+    "sudo chown -R blackbox_exporter:blackbox_exporter /etc/blackbox_exporter",
+    "echo '[Unit]\nDescription=Blackbox Exporter\nAfter=network.target\n\n[Service]\nUser=blackbox_exporter\nExecStart=/usr/local/bin/blackbox_exporter --config.file=/etc/blackbox_exporter/blackbox.yml\n\n[Install]\nWantedBy=multi-user.target' | sudo tee /etc/systemd/system/blackbox_exporter.service",
+    "sudo systemctl daemon-reload",
+    "sudo systemctl enable --now blackbox_exporter",
+
+    # Install Grafana
+    "sudo mkdir -p /etc/apt/keyrings/",
+    "wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/grafana.gpg > /dev/null",
+    "echo 'deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main' | sudo tee /etc/apt/sources.list.d/grafana.list",
+    "sudo apt-get update -y",
+    "sudo apt-get install grafana -y",
+    "sudo sed -i 's/^;http_port = 3000/http_port = 5000/' /etc/grafana/grafana.ini",
+    "sudo systemctl daemon-reload",
+    "sudo systemctl enable --now grafana-server"
+  ]
 }
 
 # STEP 3: OUTPUTS
