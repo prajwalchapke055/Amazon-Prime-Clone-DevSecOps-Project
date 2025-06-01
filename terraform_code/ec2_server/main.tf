@@ -43,6 +43,15 @@ resource "aws_security_group" "my-sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Port 465 is required for SMTPS (Secure SMTP)
+  ingress {
+    description = "SMTPS Port"
+    from_port   = 465
+    to_port     = 465
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Port 2379-2380 is required for etcd-cluster
   ingress {
     description     = "etc-cluster Port"
@@ -114,6 +123,16 @@ resource "aws_security_group" "my-sg" {
     protocol        = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   } 
+
+  # Port 9115 is required for Prometheus Blackbox Exporter
+  ingress {
+    description = "Prometheus Blackbox Exporter"
+    from_port   = 9115
+    to_port     = 9115
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
 
   # Port 10250-10260 is required for K8s
   ingress {
