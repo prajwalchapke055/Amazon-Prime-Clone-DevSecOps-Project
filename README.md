@@ -6,17 +6,27 @@
 ## Project Overview
 This project demonstrates deploying an Amazon Prime clone using a set of DevOps tools and practices. The primary tools include:
 
-- **Terraform**: Infrastructure as Code (IaC) tool to create AWS infrastructure such as EC2 instances and EKS clusters.
-- **GitHub**: Source code management.
-- **Jenkins**: CI/CD automation tool.
-- **SonarQube**: Code quality analysis and quality gate tool.
-- **NPM**: Build tool for NodeJS.
-- **Aqua Trivy**: Security vulnerability scanner.
-- **Docker**: Containerization tool to create images.
-- **AWS ECR**: Repository to store Docker images.
-- **AWS EKS**: Container management platform.
-- **ArgoCD**: Continuous deployment tool.
-- **Prometheus & Grafana**: Monitoring and alerting tools.
+| Tool                       | Purpose                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| **Git**                    | Version control system to manage source code.                                  |
+| **GitHub**                 | Source code hosting and collaboration platform.                                |
+| **Visual Studio Code**     | Lightweight and powerful code editor for development.                          |
+| **AWS IAM**                | Identity and Access Management for AWS services and user roles.                |
+| **Terraform**              | Infrastructure as Code (IaC) tool to provision AWS resources like EC2 and EKS. |
+| **Jenkins**                | CI/CD automation tool for building, testing, and deploying applications.       |
+| **SonarQube**              | Code quality analysis and static code inspection with quality gates.           |
+| **NPM**                    | Node.js package manager used for building and managing dependencies.           |
+| **OWASP Dependency-Check** | Detect known vulnerabilities in project dependencies.                          |
+| **Aqua Trivy**             | Security scanner for vulnerabilities in Docker images and Kubernetes.          |
+| **Docker**                 | Containerization tool for creating and managing container images.              |
+| **Docker Hub**             | Cloud-based Docker registry for storing and sharing container images.          |
+| **AWS ECR**                | Private container registry on AWS for Docker images.                           |
+| **AWS EKS**                | Kubernetes-based container orchestration service by AWS.                       |
+| **Helm**                   | Kubernetes package manager for deploying applications (charts).                |
+| **ArgoCD**                 | GitOps-based continuous delivery tool for Kubernetes.                          |
+| **Prometheus**             | Monitoring system and time-series database for metrics.                        |
+| **Grafana**                | Visualization and alerting dashboard for Prometheus metrics.                   |
+| **Blackbox Exporter**      | Probes endpoints (HTTP, TCP, etc.) and exposes metrics for Prometheus.         |
 
 ---
 
