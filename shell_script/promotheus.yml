@@ -1,33 +1,43 @@
-static_configs:
-      - targets: ["localhost:9090"]
+global:
+  scrape_interval: 15s
 
-- job_name: 'blackbox'
-    metrics_path: /probe
-    params:
-      module: [http_2xx]  # Look for a HTTP 200 response.
+scrape_configs:
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node_exporter'
     static_configs:
       - targets:
-          - http://prometheus.io      # Target to probe with HTTP.
-          - http://<IP>:3000  # Target to probe with HTTPS.
-          - http://<IP>:5000 # Targetto probe with Grafana
+          - 'localhost:9100'
+          - '<IP>:9100'
 
+  - job_name: 'jenkins'
+    metrics_path: '/prometheus'
+    static_configs:
+      - targets:
+          - '<IP>:8080'
+
+  - job_name: 'k8s'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'node1Ip:9100'
+
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]  # Expect HTTP 200 responses
+    static_configs:
+      - targets:
+          - http://prometheus.io
+          - http://<IP>:3000
+          - http://<IP>:5000
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: <IP>:9115  # The blackbox exporter's real hostname.
-
-
-- job_name: 'jenkins'
-  metrics_path: '/prometheus'
-  static_configs:
-    - targets:
-      - '<IP>:8080'
-
-- job_name: node_exporter
-  static_configs:
-     - targets:
-          - '<IP>:9100'
-
+        replacement: <IP>:9115  # Blackbox Exporter's address
