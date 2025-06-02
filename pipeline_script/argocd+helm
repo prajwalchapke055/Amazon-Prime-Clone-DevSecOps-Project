@@ -1,0 +1,52 @@
+pipeline {
+    agent any
+
+    environment {
+        KUBECTL = '/usr/local/bin/kubectl'
+    }
+
+    parameters {
+        string(name: 'CLUSTER_NAME', defaultValue: 'amazon-prime-cluster', description: 'Enter your EKS cluster name')
+    }
+
+    stages {
+        stage("Login to EKS") {
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+                        string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+                    ]) {
+                        sh """
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY
+                        aws configure set aws_secret_access_key $AWS_SECRET_KEY
+                        aws eks --region us-east-1 update-kubeconfig --name ${params.CLUSTER_NAME}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage("Install Helm (if needed)") {
+            steps {
+                script {
+                    sh """
+                    which helm || curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+                    """
+                }
+            }
+        }
+
+        stage("Setup ArgoCD") {
+            steps {
+                script {
+                    sh """
+                    kubectl create namespace argocd || true
+                    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+                    kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+                    """
+                }
+            }
+        }
+    }
+}
