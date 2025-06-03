@@ -18,4 +18,5 @@ COPY . .
 EXPOSE 5000
 
 # Start the application
+ENV PORT=5000
 CMD ["npm", "start"]
