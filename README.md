@@ -149,13 +149,20 @@ pipeline {
     }
 
     stages {
-        stage('1. Git Checkout') {
+
+        stage ('1. Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('2. Git Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/prajwalchapke055/Amazon-Prime-Clone-DevSecOps-Project.git'
             }
         }
 
-        stage('2. SonarQube Analysis') {
+        stage('3. SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonar-server') {
                     sh """
@@ -167,13 +174,25 @@ pipeline {
             }
         }
 
-        stage('3. Quality Gate') {
+        // stage('4. Quality Gate') {
+        //   steps {
+        //        waitForQualityGate abortPipeline: true
+        //    }
+        // }
+
+        stage("4. Quality Gate") {
             steps {
-                waitForQualityGate abortPipeline: true
-            }
+                script {
+                    def qualityGate = waitForQualityGate(abortPipeline: false, credentialsId: 'sonar-token')
+                    if (qualityGate.status != 'OK') {
+                        error "Quality Gate failed: ${qualityGate.status}"
+                        }
+                    }
+                }
         }
 
-        stage('4. Install npm') {
+
+        stage('5. Install NPM Dependencies') {
             steps {
                 sh '''
                 rm -rf node_modules package-lock.json
@@ -183,17 +202,17 @@ pipeline {
         }
 
 
-        stage ('5. OWASP Dependency-Check') {
+        stage ('6. OWASP Dependency-Check') {
             steps {
                 withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
-                dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dc'
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'dc'
             }
             dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
         }
     }
 
 
-        stage('6. Trivy Scan & Report') {
+        stage('7. Trivy Scan & Report') {
             steps {
                 script {
                     sh "trivy fs --format table -o trivy-fs-report.html . "
@@ -201,80 +220,83 @@ pipeline {
             }
         }
 
+stage('8. Build Docker Image') {
+    steps {
+        script {
+            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
 
-        stage('7. Build, Push & Deploy Docker Container') {
-            steps {
-                withDockerRegistry(credentialsId: 'docker', url: 'https://index.docker.io/v1/') {
-                    script {
-                        def imageName = "prajwal055/${params.ECR_REPO_NAME}"
-                        def fullImage = "${imageName}:latest"
+            sh """
+                # Build image tagged with build number and latest
+                docker build -t ${imageName}:${BUILD_NUMBER} .
 
-                        sh "docker build -t ${params.ECR_REPO_NAME} ."
-                        sh "docker push ${fullImage}"
-                        // sh "docker rm -f amazon-prime || true"
-                        // sh "docker run -d --rm --name amazon-prime -p 3000:3000 ${fullImage}"
-                        }
-                    }
-                }
-        }
+                docker tag ${imageName}:${BUILD_NUMBER} ${imageName}:latest
 
-        stage('8. Create ECR Repo') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
-                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
-                ]) {
-                    sh '''
-                    aws configure set aws_access_key_id $AWS_ACCESS_KEY
-                    aws configure set aws_secret_access_key $AWS_SECRET_KEY
-                    aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region us-east-1 || \
-                    aws ecr create-repository --repository-name ${ECR_REPO_NAME} --region us-east-1
-                    '''
-                }
-            }
-        }
+                # Stop and remove container if it already exists
+                docker rm -f amazon-prime || true
 
-        stage('9. Login to ECR & Tag Image') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
-                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
-                ]) {
-                    sh '''
-                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-                    docker tag ${ECR_REPO_NAME}:latest ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:${BUILD_NUMBER}
-                    docker tag ${ECR_REPO_NAME}:latest ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:latest
-                    '''
-                }
-            }
-        }
-
-        stage('10. Push Image to ECR') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
-                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
-                ]) {
-                    sh '''
-                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:${BUILD_NUMBER}
-                    docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:latest
-                    '''
-                }
-            }
-        }
-
-        stage('11. Cleanup Images') {
-            steps {
-                sh '''
-                docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:${BUILD_NUMBER} || true
-                docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${ECR_REPO_NAME}:latest || true
-                docker images
-                '''
-            }
+                # Run new container exposing port 5000
+                docker run -d --name amazon-prime -p 5000:5000 ${imageName}:latest
+            """
         }
     }
+}
 
-  post {
+stage('9. Create ECR Repo') {
+    steps {
+        withCredentials([
+            string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+            string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+        ]) {
+            sh """
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY
+            aws configure set aws_secret_access_key $AWS_SECRET_KEY
+            aws ecr describe-repositories --repository-names ${params.ECR_REPO_NAME} --region us-east-1 || \
+            aws ecr create-repository --repository-name ${params.ECR_REPO_NAME} --region us-east-1
+            """
+        }
+    }
+}
+
+stage('10. Login to ECR') {
+    steps {
+        withCredentials([
+            string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+            string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+        ]) {
+            sh """
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+            """
+        }
+    }
+}
+
+stage('11. Push Image to ECR') {
+    steps {
+        script {
+            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
+            sh """
+                docker push ${imageName}:${BUILD_NUMBER}
+                docker push ${imageName}:latest
+            """
+        }
+    }
+}
+
+stage('12. Cleanup Old Images') {
+    steps {
+        script {
+            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
+            sh """
+                docker rmi ${imageName}:${BUILD_NUMBER} || true
+                docker rmi ${imageName}:latest || true
+                docker image prune -f
+            """
+        }
+    }
+}
+
+}
+post {
     always {
         script {
             def jobName = env.JOB_NAME
@@ -305,6 +327,7 @@ pipeline {
                 mimeType: 'text/html',
                 attachmentsPattern: 'trivy-fs-report.html,dependency-check-report.xml,**/*.html,**/*txt,**/*.xml'
             )
+            }
         }
     }
 }
