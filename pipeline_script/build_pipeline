@@ -93,7 +93,7 @@ stage('8. Build Docker Image') {
             def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
             sh """
                 docker build -t ${params.ECR_REPO_NAME} .
-                docker build -t ${imageName}:${BUILD_NUMBER} -t ${imageName}:latest .
+                // docker build -t ${imageName}:${BUILD_NUMBER} -t ${imageName}:latest .
             """
         }
     }
