@@ -153,19 +153,19 @@ stage('12. Cleanup Old Images') {
     }
 }
 
-stage('13. Run Docker Container') {
-    steps {
-        script {
-            def containerName = "${params.ECR_REPO_NAME}"
-            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
-            sh """
-                docker rm -f ${containerName} || true
-                docker run -d --name ${containerName} -p 3000:3000 ${imageName}:latest
-                docker ps
-            """
-            }
-        }
-    }
+// stage('13. Run Docker Container') {
+//    steps {
+//        script {
+//            def containerName = "${params.ECR_REPO_NAME}"
+//            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
+//            sh """
+//               docker rm -f ${containerName} || true
+//                docker run -d --name ${containerName} -p 3000:3000 ${imageName}:latest
+//               docker ps
+//            """
+//           }
+//        }
+//   }
 }
 post {
     always {
