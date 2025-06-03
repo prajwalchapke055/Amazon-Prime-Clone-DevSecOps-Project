@@ -1,7 +1,4 @@
-# To deploy this application, run:
-# kubectl apply -f manifest.yml
-
----
+# Deployment for PandaCloud App
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,20 +16,22 @@ spec:
         app: pandacloud-app
     spec:
       containers:
-      - name: pandacloud-container
-        image: 050451361261.dkr.ecr.us-east-1.amazonaws.com/amazon-prime:latest
-        ports:
-        - containerPort: 5000
-
+        - name: pandacloud-container
+          image: 050451361261.dkr.ecr.us-east-1.amazonaws.com/amazon-prime:latest
+          ports:
+            - containerPort: 5000
+          imagePullPolicy: Always
 ---
+# Service to expose the PandaCloud App
 apiVersion: v1
 kind: Service
 metadata:
-  name: pandacloud-app
+  name: pandacloud-service
 spec:
-  type: LoadBalancer
   selector:
     app: pandacloud-app
+  type: LoadBalancer
   ports:
-  - port: 80
-    targetPort: 5000
+    - name: http
+      port: 5000         # Expose on port 5000 externally
+      targetPort: 5000   # Container listens on 5000
