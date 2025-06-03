@@ -91,9 +91,18 @@ stage('8. Build Docker Image') {
     steps {
         script {
             def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
+
             sh """
-                docker build -t ${params.ECR_REPO_NAME} .
-                // docker build -t ${imageName}:${BUILD_NUMBER} -t ${imageName}:latest .
+                # Build image tagged with build number and latest
+                docker build -t ${imageName}:${BUILD_NUMBER} .
+
+                docker tag ${imageName}:${BUILD_NUMBER} ${imageName}:latest
+
+                # Stop and remove container if it already exists
+                docker rm -f amazon-prime || true
+
+                # Run new container exposing port 5000
+                docker run -d --name amazon-prime -p 5000:5000 ${imageName}:latest
             """
         }
     }
@@ -105,12 +114,12 @@ stage('9. Create ECR Repo') {
             string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
             string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
         ]) {
-            sh '''
+            sh """
             aws configure set aws_access_key_id $AWS_ACCESS_KEY
             aws configure set aws_secret_access_key $AWS_SECRET_KEY
-            aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region us-east-1 || \
-            aws ecr create-repository --repository-name ${ECR_REPO_NAME} --region us-east-1
-            '''
+            aws ecr describe-repositories --repository-names ${params.ECR_REPO_NAME} --region us-east-1 || \
+            aws ecr create-repository --repository-name ${params.ECR_REPO_NAME} --region us-east-1
+            """
         }
     }
 }
@@ -121,9 +130,9 @@ stage('10. Login to ECR') {
             string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
             string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
         ]) {
-            sh '''
+            sh """
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-            '''
+            """
         }
     }
 }
@@ -153,19 +162,6 @@ stage('12. Cleanup Old Images') {
     }
 }
 
-// stage('13. Run Docker Container') {
-//    steps {
-//        script {
-//            def containerName = "${params.ECR_REPO_NAME}"
-//            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
-//            sh """
-//               docker rm -f ${containerName} || true
-//                docker run -d --name ${containerName} -p 3000:3000 ${imageName}:latest
-//               docker ps
-//            """
-//           }
-//        }
-//   }
 }
 post {
     always {
