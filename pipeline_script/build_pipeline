@@ -198,6 +198,7 @@ pipeline {
                 mimeType: 'text/html',
                 attachmentsPattern: 'trivy-fs-report.html,dependency-check-report.xml,**/*.html,**/*txt,**/*.xml'
             )
+            }
         }
     }
 }
