@@ -91,8 +91,8 @@ stage('8. Build Docker Image') {
     steps {
         script {
             def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
-            // Build image with both tags directly
             sh """
+                docker build -t ${params.ECR_REPO_NAME} .
                 docker build -t ${imageName}:${BUILD_NUMBER} -t ${imageName}:latest .
             """
         }
@@ -140,7 +140,7 @@ stage('11. Push Image to ECR') {
     }
 }
 
-stage('12. Cleanup Images') {
+stage('12. Cleanup Old Images') {
     steps {
         script {
             def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
@@ -149,7 +149,21 @@ stage('12. Cleanup Images') {
                 docker rmi ${imageName}:latest || true
                 docker image prune -f
             """
-             }
+        }
+    }
+}
+
+stage('13. Run Docker Container') {
+    steps {
+        script {
+            def containerName = "${params.ECR_REPO_NAME}"
+            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
+            sh """
+                docker rm -f ${containerName} || true
+                docker run -d --name ${containerName} -p 3000:3000 ${imageName}:latest
+                docker ps
+            """
+            }
         }
     }
 }
