@@ -20,7 +20,7 @@ sudo apt-get update -y
 sudo apt-get install grafana -y
 
 # Change Grafana port to 5000 in the config file
-sudo sed -i 's/^;http_port = 3000/http_port = 5000/' /etc/grafana/grafana.ini
+# sudo sed -i 's/^;http_port = 3000/http_port = 5000/' /etc/grafana/grafana.ini
 
 # Open firewall (if needed, you’ve already added in Terraform SG)
 # sudo ufw allow 5000/tcp
@@ -32,5 +32,5 @@ sudo systemctl enable grafana-server
 
 # Output info
 ip=$(curl -s ifconfig.me)
-echo "Grafana is running at: http://$ip:5000"
+echo "Grafana is running at: http://$ip:3000"
 echo "Default login: admin / admin"
