@@ -101,6 +101,7 @@ This will create the EC2 instance, security groups, and install necessary tools 
 ## Jenkins Configuration
 1. **Add Jenkins Credentials**:
    - Add the SonarQube token, AWS access key, and secret key in `Manage Jenkins → Credentials → System → Global credentials`.
+
 2. **Install Required Plugins**:
    - Install plugins such as SonarQube Scanner, NodeJS, Docker, and Prometheus metrics under `Manage Jenkins → Plugins`.
 
@@ -110,15 +111,20 @@ This will create the EC2 instance, security groups, and install necessary tools 
 ---
 
 ## Pipeline Overview
+
 ### Pipeline Stages
-1. **Git Checkout**: Clones the source code from GitHub.
-2. **SonarQube Analysis**: Performs static code analysis.
-3. **Quality Gate**: Ensures code quality standards.
-4. **Install NPM Dependencies**: Installs NodeJS packages.
-5. **Trivy Security Scan**: Scans the project for vulnerabilities.
-6. **Docker Build**: Builds a Docker image for the project.
-7. **Push to AWS ECR**: Tags and pushes the Docker image to ECR.
-8. **Image Cleanup**: Deletes images from the Jenkins server to save space.
+1. **Clean Workspace** – Clears previous build files and workspace data.
+2. **Git Checkout** – Clones the source code from the GitHub repository.
+3. **SonarQube Code Analysis** – Analyzes the source code for bugs, code smells, and vulnerabilities.
+4. **Quality Gate Validation** – Validates the code quality status returned by SonarQube.
+5. **Install NPM Dependencies** – Installs required Node.js packages using npm.
+6. **Trivy Security Scan** – Scans the file system for security vulnerabilities using Trivy.
+7. **Docker Image Build & Local Run** – Builds the Docker image and runs the container locally on port 5000.
+8. **Create AWS ECR Repository** – Creates the ECR repository if it doesn’t exist.
+9. **Authenticate with AWS ECR** – Logs in to AWS ECR using configured credentials.
+10. **Push Docker Image to AWS ECR** – Pushes the tagged Docker image to AWS ECR.
+11. **Cleanup Local Docker Images** – Removes Docker images to free up local storage.
+12. **Post-Build Email Notification** – Sends build status and scan reports via email.
 
 ---
 
@@ -146,6 +152,9 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'SonarQube Scanner'
+        AWS_REGION = "us-east-1"
+        IMAGE_NAME = "${params.ECR_REPO_NAME}"
+        ECR_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${params.ECR_REPO_NAME}"
     }
 
     stages {
@@ -201,108 +210,130 @@ pipeline {
             }
         }
 
+// stage('6. OWASP Dependency-Check') {
+//     steps {
+//         withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
+//             sh 'mkdir -p dependency-check-report'  // Ensure output directory exists
+//             dependencyCheck(
+//                 additionalArguments: '--scan ./ ' +
+//                                      '--format XML ' +
+//                                      '--format HTML ' +
+//                                      '--out dependency-check-report ' +
+//                                      '--disableYarnAudit ' +
+//                                      '--disableNodeAudit ' +
+//                                      '--nvdApiKey=' + NVD_API_KEY,
+//                 odcInstallation: 'dc'
+//             )
+//         }
+//         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+//     }
+// }
 
-        stage ('6. OWASP Dependency-Check') {
-            steps {
-                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
-                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'dc'
-            }
-            dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-        }
-    }
 
-
-        stage('7. Trivy Scan & Report') {
+        stage('6. Trivy Scan & Report') {
             steps {
                 script {
                     sh "trivy fs --format table -o trivy-fs-report.html . "
                 }
             }
         }
+        
+stage('7. Build Docker Image') {
+            steps {
+                script {
+                    sh """
+                        echo "Cleaning up any existing containers..."
 
-stage('8. Build Docker Image') {
-    steps {
-        script {
-            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
+                        # Stop and remove running container
+                        if docker ps -a --format '{{.Names}}' | grep -w amazon-prime; then
+                            docker stop amazon-prime || true
+                            docker rm -f amazon-prime || true
+                        fi
 
-            sh """
-                # Build image tagged with build number and latest
-                docker build -t ${imageName}:${BUILD_NUMBER} .
+                        # Remove image if exists
+                        if docker images -q ${IMAGE_NAME}:latest > /dev/null; then
+                            docker rmi -f ${IMAGE_NAME}:latest || true
+                        fi
 
-                docker tag ${imageName}:${BUILD_NUMBER} ${imageName}:latest
+                        echo "Building new Docker image..."
+                        docker build -t ${IMAGE_NAME}:latest .
 
-                # Stop and remove container if it already exists
-                docker rm -f amazon-prime || true
+                        echo "Tagging image for ECR..."
+                        docker tag ${IMAGE_NAME}:latest ${ECR_URI}:${BUILD_NUMBER}
+                        docker tag ${IMAGE_NAME}:latest ${ECR_URI}:latest
 
-                # Run new container exposing port 5000
-                docker run -d --name amazon-prime -p 5000:5000 ${imageName}:latest
-            """
+                        echo "Running container on port 5000..."
+                        docker run -d --name amazon-prime -p 5000:5000 ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+
+        stage('8. Create ECR Repo') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+                ]) {
+                    sh """
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY
+                        aws configure set aws_secret_access_key $AWS_SECRET_KEY
+                        aws ecr describe-repositories --repository-names ${IMAGE_NAME} --region ${AWS_REGION} || \
+                        aws ecr create-repository --repository-name ${IMAGE_NAME} --region ${AWS_REGION}
+                    """
+                }
+            }
+        }
+
+        stage('9. Login to ECR') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
+                    string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
+                ]) {
+                    sh """
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY
+                        aws configure set aws_secret_access_key $AWS_SECRET_KEY
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_URI}
+                    """
+                }
+            }
+        }
+
+        stage('10. Push Image to ECR') {
+            steps {
+                sh """
+                    docker push ${ECR_URI}:${BUILD_NUMBER}
+                    docker push ${ECR_URI}:latest
+                """
+            }
+        }
+
+        stage('11. Cleanup Old Images') {
+            steps {
+                sh """
+                    docker rmi -f ${ECR_URI}:${BUILD_NUMBER} || true
+                    docker rmi -f ${ECR_URI}:latest || true
+                    docker rmi -f ${IMAGE_NAME}:latest || true
+                    docker image prune -f
+                """
+            }
         }
     }
-}
-
-stage('9. Create ECR Repo') {
-    steps {
-        withCredentials([
-            string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
-            string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
-        ]) {
-            sh """
-            aws configure set aws_access_key_id $AWS_ACCESS_KEY
-            aws configure set aws_secret_access_key $AWS_SECRET_KEY
-            aws ecr describe-repositories --repository-names ${params.ECR_REPO_NAME} --region us-east-1 || \
-            aws ecr create-repository --repository-name ${params.ECR_REPO_NAME} --region us-east-1
-            """
-        }
-    }
-}
-
-stage('10. Login to ECR') {
-    steps {
-        withCredentials([
-            string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'),
-            string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')
-        ]) {
-            sh """
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-            """
-        }
-    }
-}
-
-stage('11. Push Image to ECR') {
-    steps {
-        script {
-            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
-            sh """
-                docker push ${imageName}:${BUILD_NUMBER}
-                docker push ${imageName}:latest
-            """
-        }
-    }
-}
-
-stage('12. Cleanup Old Images') {
-    steps {
-        script {
-            def imageName = "${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}"
-            sh """
-                docker rmi ${imageName}:${BUILD_NUMBER} || true
-                docker rmi ${imageName}:latest || true
-                docker image prune -f
-            """
-        }
-    }
-}
-
-}
+    
+    
 post {
     always {
+        // archiveArtifacts artifacts: 'dependency-check-report/*', fingerprint: true
+
         script {
             def jobName = env.JOB_NAME
             def buildNumber = env.BUILD_NUMBER
             def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
-            def buildUser = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')[0]?.userId ?: 'GitHub Triggered'
+
+            def userCause = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
+            def buildUser = userCause ? userCause[0]?.userId : 'GitHub or Timer Triggered'
+
             def bannerColor = buildStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
 
             def body = """<html>
@@ -322,14 +353,14 @@ post {
                 subject: "Pipeline ${buildStatus}: ${jobName} #${buildNumber}",
                 body: body,
                 to: 'prajwalchapke742@gmail.com',
-                from: 'jenkins@example.com',
-                replyTo: 'jenkins@example.com',
+                from: 'prajwalchapke742@gmail.com',
+                replyTo: 'prajwalchapke742@gmail.com',
                 mimeType: 'text/html',
                 attachmentsPattern: 'trivy-fs-report.html,dependency-check-report.xml,**/*.html,**/*txt,**/*.xml'
-            )
-            }
-        }
-    }
+            	)
+        	}
+	}
+}
 }
 ```
 ---
@@ -360,7 +391,7 @@ pipeline {
 
         stage("1. Clone GitHub Repository") {
             steps {
-                git branch: 'main', url: 'https://github.com/pandacloud1/DevopsProject2.git'
+                git branch: 'main', url: 'https://github.com/prajwalchapke055/Amazon-Prime-Clone-DevSecOps-Project.git'
             }
         }
 
@@ -547,7 +578,7 @@ npm start
 Runs the app in the development mode.
 
 ```bash 
-Open http://localhost:3000 to view it in the browser. 
+Open http://localhost:5000 to view it in the browser. 
 ```
 
 The page will reload if you make edits.
