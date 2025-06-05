@@ -113,18 +113,20 @@ This will create the EC2 instance, security groups, and install necessary tools 
 ## Pipeline Overview
 
 ### Pipeline Stages
-1. **Clean Workspace** – Clears previous build files and workspace data.
-2. **Git Checkout** – Clones the source code from the GitHub repository.
-3. **SonarQube Code Analysis** – Analyzes the source code for bugs, code smells, and vulnerabilities.
-4. **Quality Gate Validation** – Validates the code quality status returned by SonarQube.
-5. **Install NPM Dependencies** – Installs required Node.js packages using npm.
-6. **Trivy Security Scan** – Scans the file system for security vulnerabilities using Trivy.
-7. **Docker Image Build & Local Run** – Builds the Docker image and runs the container locally on port 5000.
-8. **Create AWS ECR Repository** – Creates the ECR repository if it doesn’t exist.
-9. **Authenticate with AWS ECR** – Logs in to AWS ECR using configured credentials.
-10. **Push Docker Image to AWS ECR** – Pushes the tagged Docker image to AWS ECR.
-11. **Cleanup Local Docker Images** – Removes Docker images to free up local storage.
-12. **Post-Build Email Notification** – Sends build status and scan reports via email.
+
+1. **Clean Workspace** – Clears previous build artifacts and resets the Jenkins workspace.
+2. **Git Checkout** – Clones the latest source code from the GitHub repository.
+3. **SonarQube Code Analysis** – Performs static code analysis for bugs, vulnerabilities, and code smells.
+4. **Quality Gate Validation** – Verifies that the SonarQube quality gate status is acceptable before proceeding.
+5. **Install NPM Dependencies** – Installs Node.js dependencies with `npm install`.
+6. **OWASP Dependency-Check** – Scans project dependencies for known security vulnerabilities using OWASP (if enabled).
+7. **Trivy Security Scan** – Runs Trivy to detect file-system-level vulnerabilities and outputs an HTML report.
+8. **Docker Image Build & Local Run** – Builds the Docker image and runs it locally to verify functionality.
+9. **Create AWS ECR Repository** – Creates the specified ECR repository if it doesn’t already exist.
+10. **Authenticate with AWS ECR** – Logs in to AWS ECR using AWS credentials for pushing images.
+11. **Push Docker Image to AWS ECR** – Pushes Docker images with versioned and latest tags to ECR.
+12. **Cleanup Local Docker Images** – Removes local Docker containers and images to save disk space.
+13. **Post-Build Email Notification** – Sends an HTML email with build result, reports, and pipeline summary.
 
 ---
 
